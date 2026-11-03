@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ObjectType {
+  PLANET
+  MOON
+  STAR
+  GALAXY
+  NEBULA
+  EXOPLANET
+  SMALL_BODY
+}
+
+enum AssetType {
+  IMAGE
+  VIDEO
+  AUDIO
+  MODEL
+  DOCUMENT
+}
+
+model CelestialObject {
+  id                 String                  @id @default(uuid()) @db.Uuid
+  name               String                  @db.VarChar(255)
+  slug               String                  @unique @db.VarChar(255)
+  objectType         ObjectType
+  description        String?
+  parentObjectId     String?                 @db.Uuid
+  sourceCatalog      String?                 @db.VarChar(100)
+  sourceCatalogId    String?                 @db.VarChar(255)
+  createdAt          DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime                @updatedAt @db.Timestamptz(3)
+  parentObject       CelestialObject?        @relation("ObjectHierarchy", fields: [parentObjectId], references: [id], onDelete: SetNull)
+  children           CelestialObject[]       @relation("ObjectHierarchy")
+  physicalProperties PhysicalProperties?
+  orbitalElements    OrbitalElements[]
+  coordinates        Coordinates[]
+  sourceReferences   ObjectSourceReference[]
+  assets             Asset[]
+
+  @@unique([sourceCatalog, sourceCatalogId])
+  @@index([objectType, name, id])
+  @@index([parentObjectId])
+  @@index([name])
+}
+
+model PhysicalProperties {
+  id              String          @id @default(uuid()) @db.Uuid
+  objectId        String          @unique @db.Uuid
+  mass            Float?
+  massUnit        String          @default("kg") @db.VarChar(30)
+  radius          Float?
+  radiusUnit      String          @default("km") @db.VarChar(30)
+  diameter        Float?
+  diameterUnit    String          @default("km") @db.VarChar(30)
+  density         Float?
+  densityUnit     String          @default("kg/m3") @db.VarChar(30)
+  temperature     Float?
+  temperatureUnit String          @default("K") @db.VarChar(30)
+  luminosity      Float?
+  luminosityUnit  String          @default("W") @db.VarChar(30)
+  spectralClass   String?         @db.VarChar(100)
+  photometricG    Float?
+  photometricBp   Float?
+  photometricRp   Float?
+  photometryUnit  String          @default("mag") @db.VarChar(30)
+  propertiesJson  Json?
+  uncertaintyJson Json?
+  source          String?         @db.VarChar(255)
+  object          CelestialObject @relation(fields: [objectId], references: [id], onDelete: Cascade)
+}
+
+model OrbitalElements {
+  id                     String          @id @default(uuid()) @db.Uuid
+  objectId               String          @db.Uuid
+  semiMajorAxis          Float?
+  semiMajorAxisUnit      String          @default("au") @db.VarChar(30)
+  eccentricity           Float?
+  inclination            Float?
+  longitudeAscendingNode Float?
+  argumentOfPeriapsis    Float?
+  meanAnomaly            Float?
+  angleUnit              String          @default("deg") @db.VarChar(30)
+  orbitalPeriod          Float?
+  orbitalPeriodUnit      String          @default("day") @db.VarChar(30)
+  epoch                  Float?
+  epochFormat            String          @default("JD") @db.VarChar(30)
+  timeScale              String?         @db.VarChar(30)
+  referenceFrame         String?         @db.VarChar(100)
+  source                 String          @db.VarChar(255)
+  uncertaintyJson        Json?
+  object                 CelestialObject @relation(fields: [objectId], references: [id], onDelete: Cascade)
+
+  @@index([objectId, source])
+}
+
+model Coordinates {
+  id                   String          @id @default(uuid()) @db.Uuid
+  objectId             String          @db.Uuid
+  rightAscension       Float?
+  declination          Float?
+  angleUnit            String          @default("deg") @db.VarChar(30)
+  rightAscensionError  Float?
+  declinationError     Float?
+  positionErrorUnit    String          @default("mas") @db.VarChar(30)
+  distance             Float?
+  distanceUnit         String          @default("pc") @db.VarChar(30)
+  distanceError        Float?
+  parallax             Float?
+  parallaxError        Float?
+  parallaxUnit         String          @default("mas") @db.VarChar(30)
+  properMotionRa       Float?
+  properMotionDec      Float?
+  properMotionRaError  Float?
+  properMotionDecError Float?
+  properMotionUnit     String          @default("mas/yr") @db.VarChar(30)
+  radialVelocity       Float?
+  radialVelocityError  Float?
+  radialVelocityUnit   String          @default("km/s") @db.VarChar(30)
+  epoch                Float?
+  epochFormat          String          @default("Julian year") @db.VarChar(30)
+  coordinateFrame      String          @db.VarChar(100)
+  source               String          @db.VarChar(255)
+  uncertaintyJson      Json?
+  object               CelestialObject @relation(fields: [objectId], references: [id], onDelete: Cascade)
+
+  @@index([objectId, source])
+  @@index([rightAscension, declination])
+}
+
+model ScientificSource {
+  id          String                  @id @default(uuid()) @db.Uuid
+  name        String                  @unique @db.VarChar(255)
+  provider    String                  @db.VarChar(255)
+  sourceUrl   String
+  license     String?
+  attribution String
+  dataVersion String?                 @db.VarChar(100)
+  references  ObjectSourceReference[]
+}
+
+model ObjectSourceReference {
+  id                 String           @id @default(uuid()) @db.Uuid
+  objectId           String           @db.Uuid
+  scientificSourceId String           @db.Uuid
+  externalIdentifier String           @db.VarChar(255)
+  importedAt         DateTime         @default(now()) @db.Timestamptz(3)
+  object             CelestialObject  @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  scientificSource   ScientificSource @relation(fields: [scientificSourceId], references: [id], onDelete: Restrict)
+
+  @@unique([objectId, scientificSourceId, externalIdentifier])
+  @@index([scientificSourceId, externalIdentifier])
+}
+
+model Asset {
+  id           String          @id @default(uuid()) @db.Uuid
+  objectId     String          @db.Uuid
+  assetType    AssetType
+  storageKey   String?
+  sourceUrl    String
+  title        String          @db.VarChar(500)
+  attribution  String
+  license      String?
+  metadataJson Json?
+  object       CelestialObject @relation(fields: [objectId], references: [id], onDelete: Cascade)
+
+  @@unique([objectId, sourceUrl])
+  @@index([objectId, assetType])
+}
